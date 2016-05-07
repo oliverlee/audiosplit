@@ -10,6 +10,12 @@ unsigned int count_audio_channels(AVFormatContext* context) {
         AVCodecContext* codec = context->streams[i]->codec;
         if (codec->codec_type == AVMEDIA_TYPE_AUDIO) {
             /* Return channel count for first audio type stream */
+            std::cout << "channels:";
+            for (int j = 0; j < codec->channels; ++j) {
+                std::cout << " "
+                    << av_get_channel_name(av_channel_layout_extract_channel(codec->channel_layout, j));
+            }
+            std::cout << "\n";
             return codec->channels;
         }
     }
@@ -41,6 +47,7 @@ int main(int argc, char** argv) {
         avformat_close_input(&context);
         return EXIT_FAILURE;
     }
+    //av_dump_format(context, 0, filename, 0);
 
     std::cout << count_audio_channels(context) << " channels in '" << filename << "'\n";
     avformat_close_input(&context);
