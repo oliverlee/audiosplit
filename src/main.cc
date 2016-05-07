@@ -13,6 +13,7 @@ int main(int argc, char** argv) {
     /* register codecs and formats and other lavf/lavc components*/
     //avcodec_register_all()
     av_register_all();
+    av_log_set_level(AV_LOG_FATAL);
 
     if (argc < 2) {
         std::cout << "Usage: " << argv[0] << " <input_file>\n";
@@ -24,6 +25,7 @@ int main(int argc, char** argv) {
     try {
         Decoder decoder(filename);
         std::cout << decoder.channels() << " channels in '" << filename << "'\n";
+        decoder.decode_audio_frames();
     } catch (const DecoderException& e) {
         std::cout << e.what() << "\n";
         return EXIT_FAILURE;
