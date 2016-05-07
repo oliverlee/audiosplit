@@ -4,16 +4,17 @@
 #include <vector>
 
 extern "C" {
+#include "libavcodec/avcodec.h"
 #include "libavformat/avformat.h"
 }
 
 
 class DecoderException: public std::exception {
     public:
-        DecoderException(std::string what_arg) {
+        DecoderException(const std::string& what_arg) {
             m_arg = what_arg + "\n";
         }
-        DecoderException(std::string what_arg, int error_code) {
+        DecoderException(const std::string& what_arg, int error_code) {
             av_strerror(error_code, m_error_buffer, sizeof(m_error_buffer));
             m_arg = what_arg + " (error '" + m_error_buffer + "')\n";
         }
@@ -21,16 +22,17 @@ class DecoderException: public std::exception {
         const char* what() const throw() { return m_arg.c_str(); };
     private:
         std::string m_arg;
-        char m_error_buffer[255]; /* use same value as in example */
+        char m_error_buffer[255]; /* use same value as in transcode_aac example */
 };
 
 
 class Decoder {
     public:
-        Decoder(const char* filename);
+        Decoder(const std::string& filename);
         ~Decoder();
         unsigned int channels() const;
         void decode_audio_frames();
+        void write_channels_to_files(const std::string& basename);
 
     private:
         AVFormatContext* m_context;

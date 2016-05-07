@@ -1,7 +1,7 @@
 #include <iostream>
 
 extern "C" {
-//#include "libavcodec/avcodec.h"
+#include "libavcodec/avcodec.h"
 #include "libavformat/avformat.h"
 }
 
@@ -11,7 +11,7 @@ extern "C" {
 int main(int argc, char** argv) {
 
     /* register codecs and formats and other lavf/lavc components*/
-    //avcodec_register_all()
+    avcodec_register_all();
     av_register_all();
     av_log_set_level(AV_LOG_FATAL);
 
@@ -26,6 +26,7 @@ int main(int argc, char** argv) {
         Decoder decoder(filename);
         std::cout << decoder.channels() << " channels in '" << filename << "'\n";
         decoder.decode_audio_frames();
+        decoder.write_channels_to_files(filename);
     } catch (const DecoderException& e) {
         std::cout << e.what() << "\n";
         return EXIT_FAILURE;
