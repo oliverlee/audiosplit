@@ -6,6 +6,7 @@ extern "C" {
 }
 
 #include "decoder.h"
+#include "asexception.h"
 
 
 int main(int argc, char** argv) {
@@ -27,7 +28,7 @@ int main(int argc, char** argv) {
         std::cout << decoder.channels() << " channels in '" << filename << "'\n";
         decoder.decode_audio_frames();
         decoder.write_channels_to_files(filename);
-    } catch (const DecoderException& e) {
+    } catch (const ASException& e) {
         std::cout << e.what() << "\n";
         return EXIT_FAILURE;
     }

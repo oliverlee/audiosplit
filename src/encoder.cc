@@ -1,6 +1,6 @@
 #include "encoder.h"
+#include "asexception.h"
 #include <fstream>
-#include <iostream>
 
 /* refer to ffmpeg/doc/examples/transcode_aac.c for encode procedure */
 
@@ -9,12 +9,12 @@ Encoder::Encoder(const std::string& filename, const AVCodecContext* source_codec
     int error;
     AVIOContext* output_io_context;
     if ((error = avio_open(&output_io_context, filename.c_str(), AVIO_FLAG_WRITE)) < 0) {
-        throw EncoderException(std::string("Error opening file: ") + filename, error);
+        throw ASException(std::string("Error opening file: ") + filename, error);
     }
 
     if (!(m_context = avformat_alloc_context())) {
         avformat_free_context(m_context);
-        throw EncoderException("Could not allocate format context");
+        throw ASException("Could not allocate format context");
     }
 
     /* Associate the output file (pointer) with the container format context. */
@@ -27,20 +27,20 @@ Encoder::Encoder(const std::string& filename, const AVCodecContext* source_codec
 
     if (!(m_context->oformat = av_guess_format(nullptr, filename.c_str(), nullptr))) {
         cleanup();
-        throw EncoderException("Could not find output file format");
+        throw ASException("Could not find output file format");
     }
 
     strlcpy(m_context->filename, filename.c_str(), sizeof(m_context->filename));
 
     if (!(m_codec = avcodec_find_encoder(source_codec_context->codec_id))) {
         cleanup();
-        throw EncoderException("Could not find audio codec");
+        throw ASException("Could not find audio codec");
     }
 
     AVStream* stream = avformat_new_stream(m_context, m_codec);
     if (!stream) {
         cleanup();
-        throw EncoderException("Could not create new audio stream");
+        throw ASException("Could not create new audio stream");
     }
 
     /* set encoder parameters  */
@@ -66,11 +66,11 @@ Encoder::Encoder(const std::string& filename, const AVCodecContext* source_codec
     /* open encoder for later use */
     if ((error = avcodec_open2(m_codec_context, m_codec, nullptr)) < 0) {
         cleanup();
-        throw EncoderException("Could not open output codec", error);
+        throw ASException("Could not open output codec", error);
     }
 
     if ((error = avformat_write_header(m_context, nullptr)) < 0) {
-        throw EncoderException("Could not write output file header", error);
+        throw ASException("Could not write output file header", error);
     }
 }
 
@@ -104,7 +104,7 @@ void Encoder::write_encode_audio_frames(std::vector<uint8_t>* channel_data) {
         auto throw_if_real_error = [&]() {
             if ((error != AVERROR(EAGAIN)) && (error != AVERROR_EOF)) {
                 cleanup();
-                throw EncoderException("", error);
+                throw ASException("", error);
             }
         };
 
@@ -119,7 +119,7 @@ void Encoder::write_encode_audio_frames(std::vector<uint8_t>* channel_data) {
         while ((error = avcodec_receive_packet(m_codec_context, &packet)) >= 0) {
             if ((error = av_write_frame(m_context, &packet)) < 0) {
                 cleanup();
-                throw EncoderException("Could not write frame", error);
+                throw ASException("Could not write frame", error);
             }
         }
         if (error < 0) {
@@ -131,14 +131,14 @@ void Encoder::write_encode_audio_frames(std::vector<uint8_t>* channel_data) {
     av_packet_unref(&packet);
 
     if ((error = av_write_trailer(m_context)) < 0) {
-        throw EncoderException("Could not write output file trailer", error);
+        throw ASException("Could not write output file trailer", error);
     }
 }
 
 AVFrame* Encoder::alloc_frame(int frame_size) const {
     AVFrame* frame = av_frame_alloc();
     if (!frame) {
-        throw EncoderException("Could not allocate frame");
+        throw ASException("Could not allocate frame");
     }
 
     frame->nb_samples = frame_size;
@@ -149,7 +149,7 @@ AVFrame* Encoder::alloc_frame(int frame_size) const {
     int error;
     if ((error = av_frame_get_buffer(frame, 0)) < 0) {
         av_frame_free(&frame);
-        throw EncoderException("Could allocate output frame samples", error);
+        throw ASException("Could allocate output frame samples", error);
     }
 
     return frame;

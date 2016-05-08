@@ -9,23 +9,6 @@ extern "C" {
 }
 
 
-class DecoderException: public std::exception {
-    public:
-        DecoderException(const std::string& what_arg) {
-            m_arg = what_arg + "\n";
-        }
-        DecoderException(const std::string& what_arg, int error_code) {
-            av_strerror(error_code, m_error_buffer, sizeof(m_error_buffer));
-            m_arg = what_arg + " (error '" + m_error_buffer + "')\n";
-        }
-        ~DecoderException() throw() { }
-        const char* what() const throw() { return m_arg.c_str(); };
-    private:
-        std::string m_arg;
-        char m_error_buffer[255]; /* use same value as in transcode_aac example */
-};
-
-
 class Decoder {
     public:
         Decoder(const std::string& filename);

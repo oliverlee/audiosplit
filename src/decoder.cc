@@ -1,5 +1,6 @@
 #include "decoder.h"
 #include "encoder.h"
+#include "asexception.h"
 #include <fstream>
 #include <iostream>
 
@@ -7,11 +8,11 @@ Decoder::Decoder(const std::string& filename):
     m_context(nullptr), m_codec_context(nullptr), m_codec(nullptr) {
     int error;
     if ((error = avformat_open_input(&m_context, filename.c_str(), nullptr, nullptr)) < 0) {
-        throw DecoderException(std::string("Error opening file: ") + filename, error);
+        throw ASException(std::string("Error opening file: ") + filename, error);
     }
     if ((error = avformat_find_stream_info(m_context, nullptr)) < 0) {
         avformat_close_input(&m_context);
-        throw DecoderException("Could not open find stream info", error);
+        throw ASException("Could not open find stream info", error);
     }
     for (int i = 0; i < m_context->nb_streams; ++i) {
         /*
@@ -26,15 +27,15 @@ Decoder::Decoder(const std::string& filename):
     }
     if (m_codec_context == nullptr) {
         avformat_close_input(&m_context);
-        throw DecoderException("Could not find audio stream");
+        throw ASException("Could not find audio stream");
     }
     if (!(m_codec = avcodec_find_decoder(m_codec_context->codec_id))) {
         avformat_close_input(&m_context);
-        throw DecoderException("Could not find audio codec");
+        throw ASException("Could not find audio codec");
     }
     if ((error = avcodec_open2(m_codec_context, m_codec, nullptr)) < 0) {
         avformat_close_input(&m_context);
-        throw DecoderException("Could not open input codec", error);
+        throw ASException("Could not open input codec", error);
     }
     m_channel_data = std::vector<std::vector<uint8_t>>(channels(), std::vector<uint8_t>(0));
 }
@@ -50,7 +51,7 @@ unsigned int Decoder::channels() const {
 void Decoder::decode_audio_frames() {
     if (!av_sample_fmt_is_planar(m_codec_context->sample_fmt)) {
         /* TODO: convert frame to planar format */
-        throw DecoderException("Decoding for non-planar audio formats not yet implemented");
+        throw ASException("Decoding for non-planar audio formats not yet implemented");
     }
 
     /* clear previous channel data if any */
@@ -60,7 +61,7 @@ void Decoder::decode_audio_frames() {
 
     AVFrame* frame = av_frame_alloc();
     if (!frame) {
-        throw DecoderException("Could not allocate audio frame");
+        throw ASException("Could not allocate audio frame");
     }
 
     AVPacket packet; /* packet used for temporary storage */
@@ -77,7 +78,7 @@ void Decoder::decode_audio_frames() {
     auto throw_if_real_error = [&]() {
         if ((error != AVERROR(EAGAIN)) && (error != AVERROR_EOF)) {
             cleanup();
-            throw DecoderException("", error);
+            throw ASException("", error);
         }
     };
 
@@ -116,7 +117,7 @@ void Decoder::decode_audio_frames() {
 
 void Decoder::write_channels_to_files(const std::string& basename) {
     if (m_channel_data[0].size() == 0) {
-        throw DecoderException("No data to write");
+        throw ASException("No data to write");
     }
 
     std::string::size_type index = basename.rfind('.');
