@@ -22,7 +22,11 @@ int main(int argc, char** argv) {
 
     if (argc < 2) {
         std::cout << "Usage: " << argv[0] << " <input_file>\n";
-        std::cout << "Print the number of audio channels in input file.\n\n";
+        std::cout << "Split audio channels in input file in to separate files.\n\n"
+            << "Output files are encoded as single channel (mono) .aac files.\n"
+            << "Other audio file properties are retained from the input file.\n"
+            << "Output files are written to the same directory as the input file\n"
+            << "and have the abbreviated channel inserted into the filename.\n\n";
         return EXIT_FAILURE;
     }
 
