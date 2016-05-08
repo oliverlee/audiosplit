@@ -13,6 +13,9 @@ class Encoder {
         Encoder(const std::string& filename, const AVCodecContext* source_codec_context);
         ~Encoder();
         void write_encode_audio_frames(std::vector<uint8_t>* channel_data);
+        void write_frame(AVFrame* frame);
+        void write_trailer();
+        const AVCodecContext* codec_context();
 
     private:
         AVFormatContext* m_context;

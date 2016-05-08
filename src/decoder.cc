@@ -1,11 +1,13 @@
 #include "decoder.h"
 #include "encoder.h"
 #include "asexception.h"
+#include "splitfiltergraph.h"
 #include <fstream>
 #include <iostream>
 
 Decoder::Decoder(const std::string& filename):
-    m_context(nullptr), m_codec_context(nullptr), m_codec(nullptr) {
+    m_context(nullptr), m_codec_context(nullptr), m_codec(nullptr),
+    m_filename(filename) {
     int error;
     if ((error = avformat_open_input(&m_context, filename.c_str(), nullptr, nullptr)) < 0) {
         throw ASException(std::string("Error opening file: ") + filename, error);
@@ -37,7 +39,6 @@ Decoder::Decoder(const std::string& filename):
         avformat_close_input(&m_context);
         throw ASException("Could not open input codec", error);
     }
-    m_channel_data = std::vector<std::vector<uint8_t>>(channels(), std::vector<uint8_t>(0));
 }
 
 Decoder::~Decoder() {
@@ -54,11 +55,6 @@ void Decoder::decode_audio_frames() {
         throw ASException("Decoding for non-planar audio formats not yet implemented");
     }
 
-    /* clear previous channel data if any */
-    for (int i = 0; i < channels(); ++i) {
-        m_channel_data[i].clear();
-    }
-
     AVFrame* frame = av_frame_alloc();
     if (!frame) {
         throw ASException("Could not allocate audio frame");
@@ -70,7 +66,24 @@ void Decoder::decode_audio_frames() {
     packet.size = 0;
     int error = 0;
 
+    std::vector<Encoder*> encoders(channels(), nullptr);
+
+    std::string::size_type index = m_filename.rfind('.');
+    std::string basename = m_filename.substr(0, index + 1);
+
+    for (int i = 0; i < channels(); ++i) {
+        const char* channel_name = av_get_channel_name(
+                av_channel_layout_extract_channel(m_codec_context->channel_layout, i));
+        std::string filename = basename + channel_name + ".aac";
+        std::cout << "creating file: " << filename << std::endl;
+        encoders[i] = new Encoder(basename + channel_name + ".aac", m_codec_context);
+    }
+    SplitFilterGraph splitter(*m_codec_context, *encoders[0]->codec_context());
+
     auto cleanup = [&]() {
+        for (auto i: encoders) {
+            delete i;
+        }
         av_packet_unref(&packet);
         av_frame_free(&frame);
     };
@@ -78,9 +91,10 @@ void Decoder::decode_audio_frames() {
     auto throw_if_real_error = [&]() {
         if ((error != AVERROR(EAGAIN)) && (error != AVERROR_EOF)) {
             cleanup();
-            throw ASException("", error);
+            throw ASException("Could not decode", error);
         }
     };
+
 
     while (1) {
         /* get packet from format context */
@@ -99,10 +113,15 @@ void Decoder::decode_audio_frames() {
 
         /* read all frames in packet */
         while ((error = avcodec_receive_frame(m_codec_context, frame)) >= 0) {
+            if ((error = splitter.send_frame(frame)) < 0) {
+                throw ASException("Could not send frame to splitter", error);
+            }
+            // TODO: use multiple threads/queues for reading/splitting/writing frames
             for (int i = 0; i < channels(); ++i) {
-                m_channel_data[i].insert(m_channel_data[i].end(),
-                        frame->extended_data[i],
-                        frame->extended_data[i] + frame->linesize[0]);
+                while ((error = splitter.receive_sink_frame(frame, i)) >= 0) {
+                    encoders[i]->write_frame(frame);
+                }
+                throw_if_real_error();
             }
         }
         if (error < 0) {
@@ -111,25 +130,9 @@ void Decoder::decode_audio_frames() {
         }
     }
 
+    for (auto i: encoders) {
+        i->write_trailer();
+    }
     cleanup();
     return;
-}
-
-void Decoder::write_channels_to_files(const std::string& basename) {
-    if (m_channel_data[0].size() == 0) {
-        throw ASException("No data to write");
-    }
-
-    std::string::size_type index = basename.rfind('.');
-    std::string without_extension = basename.substr(0, index);
-    std::string extension = basename.substr(index);
-
-    for (int i = 0; i < channels(); ++i) {
-        const char* channel_name = av_get_channel_name(
-                av_channel_layout_extract_channel( m_codec_context->channel_layout, i));
-        std::string filename = without_extension + "." + channel_name + extension;
-        Encoder encoder(filename, m_codec_context);
-        std::cout << "writing file: " << filename << std::endl;
-        encoder.write_encode_audio_frames(&m_channel_data[i]);
-    }
 }

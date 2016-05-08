@@ -1,6 +1,7 @@
 #include "encoder.h"
 #include "asexception.h"
 #include <fstream>
+#include <iostream>
 
 /* refer to ffmpeg/doc/examples/transcode_aac.c for encode procedure */
 
@@ -32,7 +33,8 @@ Encoder::Encoder(const std::string& filename, const AVCodecContext* source_codec
 
     strlcpy(m_context->filename, filename.c_str(), sizeof(m_context->filename));
 
-    if (!(m_codec = avcodec_find_encoder(source_codec_context->codec_id))) {
+    //if (!(m_codec = avcodec_find_encoder(source_codec_context->codec_id))) {
+    if (!(m_codec = avcodec_find_encoder(AV_CODEC_ID_AAC))) {
         cleanup();
         throw ASException("Could not find audio codec");
     }
@@ -50,6 +52,7 @@ Encoder::Encoder(const std::string& filename, const AVCodecContext* source_codec
     m_codec_context->sample_rate = source_codec_context->sample_rate;
     m_codec_context->sample_fmt = m_codec->sample_fmts[0];
     m_codec_context->bit_rate = source_codec_context->bit_rate;
+    m_codec_context->strict_std_compliance = FF_COMPLIANCE_EXPERIMENTAL;
 
     /* set stream sample rate */
     stream->time_base.den = source_codec_context->sample_rate;
@@ -73,90 +76,56 @@ Encoder::Encoder(const std::string& filename, const AVCodecContext* source_codec
         throw ASException("Could not write output file header", error);
     }
 }
-
-void Encoder::write_encode_audio_frames(std::vector<uint8_t>* channel_data) {
+void Encoder::write_frame(AVFrame* frame) {
     AVPacket packet; /* packet used for temporary storage */
     av_init_packet(&packet);
     packet.data = nullptr;
     packet.size = 0;
     int error;
-    int frame_size = FFMIN(channel_data->size(), m_codec_context->frame_size);
-    AVFrame* frame = alloc_frame(frame_size);
 
-    while (channel_data->size() > 0) {
-        /* determine frame size */
-        int new_size = FFMIN(channel_data->size(), m_codec_context->frame_size);
-        if (new_size != frame_size) {
-            av_frame_free(&frame);
-            alloc_frame(new_size);
-            frame_size = new_size;
+    auto cleanup = [&]() {
+        av_packet_unref(&packet);
+    };
+
+    auto throw_if_real_error = [&]() {
+        if ((error != AVERROR(EAGAIN)) && (error != AVERROR_EOF)) {
+            cleanup();
+            throw ASException("Could not encode", error);
         }
+    };
 
-        /* move channel data to frame */
-        std::copy(channel_data->data(), channel_data->data() + frame_size, frame->data[0]);
-        channel_data->erase(channel_data->begin(), channel_data->begin() + frame_size);
+    /* send frame to encoder */
+    error = avcodec_send_frame(m_codec_context, frame);
+    if (error < 0) {
+        throw_if_real_error();
+    }
 
-        auto cleanup = [&]() {
-            av_packet_unref(&packet);
-            av_frame_free(&frame);
-        };
-
-        auto throw_if_real_error = [&]() {
-            if ((error != AVERROR(EAGAIN)) && (error != AVERROR_EOF)) {
-                cleanup();
-                throw ASException("", error);
-            }
-        };
-
-        /* send frame to encoder */
-        error = avcodec_send_frame(m_codec_context, frame);
-        if (error < 0) {
-            throw_if_real_error();
-            break;
-        }
-
-        /* read all packets in frame */
-        while ((error = avcodec_receive_packet(m_codec_context, &packet)) >= 0) {
-            if ((error = av_write_frame(m_context, &packet)) < 0) {
-                cleanup();
-                throw ASException("Could not write frame", error);
-            }
-        }
-        if (error < 0) {
-            throw_if_real_error();
-            continue;
+    /* read all packets in frame */
+    while ((error = avcodec_receive_packet(m_codec_context, &packet)) >= 0) {
+        if ((error = av_write_frame(m_context, &packet)) < 0) {
+            cleanup();
+            throw ASException("Could not write frame", error);
         }
     }
-    av_frame_free(&frame);
-    av_packet_unref(&packet);
+    if (error < 0) {
+        throw_if_real_error();
+    }
+    cleanup();
+}
 
+void Encoder::write_trailer() {
+    int error;
     if ((error = av_write_trailer(m_context)) < 0) {
         throw ASException("Could not write output file trailer", error);
     }
-}
-
-AVFrame* Encoder::alloc_frame(int frame_size) const {
-    AVFrame* frame = av_frame_alloc();
-    if (!frame) {
-        throw ASException("Could not allocate frame");
-    }
-
-    frame->nb_samples = frame_size;
-    frame->channel_layout = m_codec_context->channel_layout;
-    frame->format = m_codec_context->sample_fmt;
-    frame->sample_rate = m_codec_context->sample_rate;
-
-    int error;
-    if ((error = av_frame_get_buffer(frame, 0)) < 0) {
-        av_frame_free(&frame);
-        throw ASException("Could allocate output frame samples", error);
-    }
-
-    return frame;
 }
 
 Encoder::~Encoder() {
     avcodec_close(m_codec_context);
     avio_close(m_context->pb);
     avformat_free_context(m_context);
+}
+
+const AVCodecContext* Encoder::codec_context() {
+    return m_codec_context;
 }
