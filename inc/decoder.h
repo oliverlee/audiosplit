@@ -1,8 +1,6 @@
 #pragma once
-#include <exception>
 #include <string>
 #include <vector>
-#include "encoder.h"
 
 extern "C" {
 #include "libavcodec/avcodec.h"

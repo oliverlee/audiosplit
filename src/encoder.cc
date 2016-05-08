@@ -1,10 +1,9 @@
 #include "encoder.h"
 #include "asexception.h"
 #include <fstream>
-#include <iostream>
+
 
 /* refer to ffmpeg/doc/examples/transcode_aac.c for encode procedure */
-
 Encoder::Encoder(const std::string& filename, const AVCodecContext* source_codec_context):
     m_context(nullptr), m_codec_context(nullptr), m_codec(nullptr) {
     int error;
@@ -34,6 +33,9 @@ Encoder::Encoder(const std::string& filename, const AVCodecContext* source_codec
     strlcpy(m_context->filename, filename.c_str(), sizeof(m_context->filename));
 
     //if (!(m_codec = avcodec_find_encoder(source_codec_context->codec_id))) {
+    /*
+     * Some codecs are not available (WMA) so just use AAC.
+     */
     if (!(m_codec = avcodec_find_encoder(AV_CODEC_ID_AAC))) {
         cleanup();
         throw ASException("Could not find audio codec");
@@ -77,7 +79,8 @@ Encoder::Encoder(const std::string& filename, const AVCodecContext* source_codec
     }
 }
 void Encoder::write_frame(AVFrame* frame) {
-    AVPacket packet; /* packet used for temporary storage */
+    /* packet used for temporary storage */
+    AVPacket packet;
     av_init_packet(&packet);
     packet.data = nullptr;
     packet.size = 0;
@@ -113,17 +116,21 @@ void Encoder::write_frame(AVFrame* frame) {
     cleanup();
 }
 
-void Encoder::write_trailer() {
-    int error;
-    if ((error = av_write_trailer(m_context)) < 0) {
-        throw ASException("Could not write output file trailer", error);
-    }
-}
-
 Encoder::~Encoder() {
     avcodec_close(m_codec_context);
     avio_close(m_context->pb);
     avformat_free_context(m_context);
+}
+
+void Encoder::write_trailer() {
+    int error;
+    if ((error = av_write_trailer(m_context)) < 0) {
+        /*
+         * The trailer is not written in the destructor in the event that an
+         * error occurs, as most errors are handled by throwing exceptions.
+         */
+        throw ASException("Could not write output file trailer", error);
+    }
 }
 
 const AVCodecContext* Encoder::codec_context() {

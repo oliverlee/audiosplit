@@ -3,7 +3,7 @@
 #include "asexception.h"
 #include "splitfiltergraph.h"
 #include <fstream>
-#include <iostream>
+
 
 Decoder::Decoder(const std::string& filename):
     m_context(nullptr), m_codec_context(nullptr), m_codec(nullptr),
@@ -50,17 +50,13 @@ unsigned int Decoder::channels() const {
 }
 
 void Decoder::decode_audio_frames() {
-    if (!av_sample_fmt_is_planar(m_codec_context->sample_fmt)) {
-        /* TODO: convert frame to planar format */
-        throw ASException("Decoding for non-planar audio formats not yet implemented");
-    }
-
     AVFrame* frame = av_frame_alloc();
     if (!frame) {
         throw ASException("Could not allocate audio frame");
     }
 
-    AVPacket packet; /* packet used for temporary storage */
+    /* packet used for temporary storage */
+    AVPacket packet;
     av_init_packet(&packet);
     packet.data = nullptr;
     packet.size = 0;
@@ -68,20 +64,23 @@ void Decoder::decode_audio_frames() {
 
     std::vector<Encoder*> encoders(channels(), nullptr);
 
+    /*
+     * Output files are mono, .aac but otherwise retain the same properties as
+     * the input file. Channel name abbreviation is added to the output filename.
+     */
     std::string::size_type index = m_filename.rfind('.');
     std::string basename = m_filename.substr(0, index + 1);
-
     for (int i = 0; i < channels(); ++i) {
         const char* channel_name = av_get_channel_name(
                 av_channel_layout_extract_channel(m_codec_context->channel_layout, i));
         std::string filename = basename + channel_name + ".aac";
-        std::cout << "creating file: " << filename << std::endl;
         encoders[i] = new Encoder(basename + channel_name + ".aac", m_codec_context);
     }
     SplitFilterGraph splitter(*m_codec_context, *encoders[0]->codec_context());
 
     auto cleanup = [&]() {
         for (auto i: encoders) {
+            i->write_trailer();
             delete i;
         }
         av_packet_unref(&packet);
@@ -94,7 +93,6 @@ void Decoder::decode_audio_frames() {
             throw ASException("Could not decode", error);
         }
     };
-
 
     while (1) {
         /* get packet from format context */
@@ -128,10 +126,6 @@ void Decoder::decode_audio_frames() {
             throw_if_real_error();
             continue;
         }
-    }
-
-    for (auto i: encoders) {
-        i->write_trailer();
     }
     cleanup();
     return;

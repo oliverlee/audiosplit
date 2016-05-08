@@ -11,7 +11,6 @@ extern "C" {
 
 
 int main(int argc, char** argv) {
-
     /*
      * register codecs and formats and other lavf/lavc components
      * TODO: move to respective classes
@@ -30,7 +29,8 @@ int main(int argc, char** argv) {
     const char* filename = argv[1];
     try {
         Decoder decoder(filename);
-        std::cout << decoder.channels() << " channels in '" << filename << "'\n";
+        std::cout << "Creating " << decoder.channels()
+            << " output files for '" << filename << "'\n";
         decoder.decode_audio_frames();
     } catch (const ASException& e) {
         std::cout << e.what() << "\n";

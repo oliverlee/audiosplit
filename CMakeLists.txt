@@ -46,6 +46,10 @@ set_source_files_properties(src/decoder.cc src/encoder.cc
     PROPERTIES COMPILE_FLAGS -Wno-deprecated-declarations)
 
 include_directories(inc)
-add_executable(audiosplit src/main.cc src/decoder.cc src/encoder.cc)
+add_executable(audiosplit
+    src/main.cc
+    src/decoder.cc
+    src/encoder.cc
+    src/splitfiltergraph.cc)
 add_dependencies(audiosplit ffmpeg)
 target_link_libraries(audiosplit ${FFMPEG_LIBRARIES})
