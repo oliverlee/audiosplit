@@ -1,26 +1,19 @@
 #include <iostream>
 
 extern "C" {
-//#include "libavcodec/avcodec.h"
+#include "libavcodec/avcodec.h"
 #include "libavformat/avformat.h"
 }
 
-unsigned int count_audio_channels(AVFormatContext* context) {
-    for (int i = 0; i < context->nb_streams; ++i) {
-        AVCodecContext* codec = context->streams[i]->codec;
-        if (codec->codec_type == AVMEDIA_TYPE_AUDIO) {
-            /* Return channel count for first audio type stream */
-            return codec->channels;
-        }
-    }
-    return 0;
-}
+#include "decoder.h"
+
 
 int main(int argc, char** argv) {
 
     /* register codecs and formats and other lavf/lavc components*/
-    //avcodec_register_all();
+    avcodec_register_all();
     av_register_all();
+    av_log_set_level(AV_LOG_FATAL);
 
     if (argc < 2) {
         std::cout << "Usage: " << argv[0] << " <input_file>\n";
@@ -29,21 +22,15 @@ int main(int argc, char** argv) {
     }
 
     const char* filename = argv[1];
-    AVFormatContext* context;
-    if (avformat_open_input(&context, filename, nullptr, nullptr) < 0) {
-        std::cout << "Error opening file: " << filename << "\n";
+    try {
+        Decoder decoder(filename);
+        std::cout << decoder.channels() << " channels in '" << filename << "'\n";
+        decoder.decode_audio_frames();
+        decoder.write_channels_to_files(filename);
+    } catch (const DecoderException& e) {
+        std::cout << e.what() << "\n";
         return EXIT_FAILURE;
     }
-
-    //av_log_set_level(AV_LOG_FATAL);
-    if (avformat_find_stream_info(context, nullptr) < 0) {
-        std::cout << "Error reading stream information\n";
-        avformat_close_input(&context);
-        return EXIT_FAILURE;
-    }
-
-    std::cout << count_audio_channels(context) << " channels in '" << filename << "'\n";
-    avformat_close_input(&context);
 
     return EXIT_SUCCESS;
 }
