@@ -3,16 +3,21 @@
 extern "C" {
 #include "libavcodec/avcodec.h"
 #include "libavformat/avformat.h"
+#include "libavfilter/avfilter.h"
 }
 
 #include "decoder.h"
+#include "asexception.h"
 
 
 int main(int argc, char** argv) {
-
-    /* register codecs and formats and other lavf/lavc components*/
+    /*
+     * register codecs and formats and other lavf/lavc components
+     * TODO: move to respective classes
+     */
     avcodec_register_all();
     av_register_all();
+    avfilter_register_all();
     av_log_set_level(AV_LOG_FATAL);
 
     if (argc < 2) {
@@ -24,10 +29,10 @@ int main(int argc, char** argv) {
     const char* filename = argv[1];
     try {
         Decoder decoder(filename);
-        std::cout << decoder.channels() << " channels in '" << filename << "'\n";
+        std::cout << "Creating " << decoder.channels()
+            << " output files for '" << filename << "'\n";
         decoder.decode_audio_frames();
-        decoder.write_channels_to_files(filename);
-    } catch (const DecoderException& e) {
+    } catch (const ASException& e) {
         std::cout << e.what() << "\n";
         return EXIT_FAILURE;
     }

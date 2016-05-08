@@ -7,8 +7,10 @@ set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++1y")
 option(AUDIOSPLIT_DISABLE_YASM "Disable YASM when building FFMPEG" FALSE)
 
 set(FFMPEG_SOURCE_DIR ${PROJECT_SOURCE_DIR}/external/ffmpeg)
-set(FFMPEG_CONFIGURE_OPTIONS --disable-programs --disable-doc
-    --disable-static --enable-shared)
+set(FFMPEG_CONFIGURE_OPTIONS
+    --disable-programs --disable-doc
+    --disable-static --enable-shared
+    --enable-gpl --enable-version3)
 if(AUDIOSPLIT_DISABLE_YASM)
     set(FFMPEG_CONFIGURE_OPTIONS ${FFMPEG_CONFIGURE_OPTIONS} --disable-yasm)
 endif()
@@ -33,7 +35,9 @@ set(ENV{PKG_CONFIG_PATH} "$ENV{PKG_CONFIG_PATH}:${FFMPEG_INSTALL_DIR}/lib/pkgcon
 pkg_search_module(AVCODEC REQUIRED libavcodec)
 pkg_search_module(AVFORMAT REQUIRED libavformat)
 pkg_search_module(AVUTIL REQUIRED libavutil)
-set(FFMPEG_LIBRARIES ${AVCODEC_LIBRARIES} ${AVFORMAT_LIBRARIES} ${AVUTIL_LIBRARIES})
+pkg_search_module(AVFILTER REQUIRED libavfilter)
+set(FFMPEG_LIBRARIES ${AVCODEC_LIBRARIES} ${AVFORMAT_LIBRARIES}
+    ${AVUTIL_LIBRARIES} ${AVFILTER_LIBRARIES})
 
 include_directories(${FFMPEG_INCLUDE_DIR})
 link_directories(${FFMPEG_LIBRARY_DIR})
@@ -42,12 +46,10 @@ set_source_files_properties(src/decoder.cc src/encoder.cc
     PROPERTIES COMPILE_FLAGS -Wno-deprecated-declarations)
 
 include_directories(inc)
-add_executable(audiosplit src/main.cc src/decoder.cc src/encoder.cc)
+add_executable(audiosplit
+    src/main.cc
+    src/decoder.cc
+    src/encoder.cc
+    src/splitfiltergraph.cc)
 add_dependencies(audiosplit ffmpeg)
 target_link_libraries(audiosplit ${FFMPEG_LIBRARIES})
-
-# TODO: Disable ffmpeg build warnings:
-#   -Wno-unused-function
-#   -Wno-sometimes-uninitialized
-#   -Wno-deprecated-declarations
-#   -Wno-incompatible-pointer-types-discards-qualifiers
