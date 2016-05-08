@@ -3,8 +3,8 @@ cmake_minimum_required(VERSION 3.0)
 
 find_package(PkgConfig REQUIRED)
 
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++1y")
-option(AUDIOSPLIT_DISABLE_YASM "Disable YASM when building FFMPEG" FALSE)
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11")
+option(FFMPEG_DISABLE_YASM "Disable YASM when building FFMPEG" FALSE)
 
 set(FFMPEG_SOURCE_DIR ${PROJECT_SOURCE_DIR}/external/ffmpeg)
 set(FFMPEG_CONFIGURE_OPTIONS
