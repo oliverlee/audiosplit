@@ -38,11 +38,11 @@ set(FFMPEG_LIBRARIES ${AVCODEC_LIBRARIES} ${AVFORMAT_LIBRARIES} ${AVUTIL_LIBRARI
 include_directories(${FFMPEG_INCLUDE_DIR})
 link_directories(${FFMPEG_LIBRARY_DIR})
 
-set_source_files_properties(src/decoder.cc
+set_source_files_properties(src/decoder.cc src/encoder.cc
     PROPERTIES COMPILE_FLAGS -Wno-deprecated-declarations)
 
 include_directories(inc)
-add_executable(audiosplit src/main.cc src/decoder.cc)
+add_executable(audiosplit src/main.cc src/decoder.cc src/encoder.cc)
 add_dependencies(audiosplit ffmpeg)
 target_link_libraries(audiosplit ${FFMPEG_LIBRARIES})
 

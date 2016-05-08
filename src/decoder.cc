@@ -1,5 +1,7 @@
 #include "decoder.h"
+#include "encoder.h"
 #include <fstream>
+#include <iostream>
 
 Decoder::Decoder(const std::string& filename):
     m_context(nullptr), m_codec_context(nullptr), m_codec(nullptr) {
@@ -26,7 +28,7 @@ Decoder::Decoder(const std::string& filename):
         avformat_close_input(&m_context);
         throw DecoderException("Could not find audio stream");
     }
-    if (!(m_codec = avcodec_find_decoder((m_codec_context->codec_id)))) {
+    if (!(m_codec = avcodec_find_decoder(m_codec_context->codec_id))) {
         avformat_close_input(&m_context);
         throw DecoderException("Could not find audio codec");
     }
@@ -58,7 +60,7 @@ void Decoder::decode_audio_frames() {
 
     AVFrame* frame = av_frame_alloc();
     if (!frame) {
-        throw DecoderException("Count not allocate audio frame");
+        throw DecoderException("Could not allocate audio frame");
     }
 
     AVPacket packet; /* packet used for temporary storage */
@@ -84,7 +86,6 @@ void Decoder::decode_audio_frames() {
         error = av_read_frame(m_context, &packet);
         if (error < 0) {
             throw_if_real_error();
-            av_packet_unref(&packet);
             break;
         }
 
@@ -92,7 +93,6 @@ void Decoder::decode_audio_frames() {
         error = avcodec_send_packet(m_codec_context, &packet);
         if (error < 0) {
             throw_if_real_error();
-            av_packet_unref(&packet);
             continue;
         }
 
@@ -106,7 +106,6 @@ void Decoder::decode_audio_frames() {
         }
         if (error < 0) {
             throw_if_real_error();
-            av_packet_unref(&packet);
             continue;
         }
     }
@@ -122,15 +121,14 @@ void Decoder::write_channels_to_files(const std::string& basename) {
 
     std::string::size_type index = basename.rfind('.');
     std::string without_extension = basename.substr(0, index);
+    std::string extension = basename.substr(index);
 
     for (int i = 0; i < channels(); ++i) {
         const char* channel_name = av_get_channel_name(
                 av_channel_layout_extract_channel( m_codec_context->channel_layout, i));
-
-        std::ofstream outfile(without_extension + "." + channel_name + ".sw",
-                std::ios::out | std::ios::binary);
-        outfile.write(reinterpret_cast<char*>(m_channel_data[i].data()),
-                m_channel_data[i].size() * sizeof(uint8_t));
-        outfile.close();
+        std::string filename = without_extension + "." + channel_name + extension;
+        Encoder encoder(filename, m_codec_context);
+        std::cout << "writing file: " << filename << std::endl;
+        encoder.write_encode_audio_frames(&m_channel_data[i]);
     }
 }
